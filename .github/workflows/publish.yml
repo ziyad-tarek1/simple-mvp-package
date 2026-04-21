@@ -50,25 +50,45 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           OWNER="${{ github.repository_owner }}"
+          REPO_FULL="${{ github.repository }}"
           if gh api "orgs/${OWNER}" --silent 2>/dev/null; then
             BASE="orgs/${OWNER}"
           else
             BASE="users/${OWNER}"
           fi
-          # GitHub Maven package API name is usually groupId.artifactId or groupId%3AartifactId
-          deleted=
-          for PKG in "com.mshrai.larer" "com.mshrai%3Alarer" "larer"; do
-            VID=$(gh api "${BASE}/packages/maven/${PKG}/versions" -q '.[] | select(.name=="latest") | .id' 2>/dev/null | head -1)
-            if [ -n "$VID" ]; then
-              echo "Deleting ${PKG} version latest (id=$VID)"
-              gh api --method DELETE "${BASE}/packages/maven/${PKG}/versions/${VID}"
-              deleted=1
-              break
-            fi
-          done
-          if [ -z "$deleted" ]; then
-            echo "No existing 'latest' Maven version found to delete (first publish or different package name)"
+
+          # Resolve real package name (404/error JSON must never be parsed as a version id)
+          PKG=$(gh api --paginate "${BASE}/packages?package_type=maven" \
+            -q ".[] | select(.repository != null and .repository.full_name == \"${REPO_FULL}\") | .name" 2>/dev/null | head -1 || true)
+          if [ -z "$PKG" ]; then
+            for cand in "com.mshrai.larer" "larer"; do
+              if OUT=$(gh api "${BASE}/packages/maven/${cand}/versions" 2>/dev/null) && echo "$OUT" | jq -e 'type == "array"' >/dev/null 2>&1; then
+                PKG="$cand"
+                break
+              fi
+            done
           fi
+          if [ -z "$PKG" ]; then
+            echo "Could not resolve Maven package for ${REPO_FULL}; skipping delete of latest"
+            exit 0
+          fi
+          echo "Maven package for API: ${PKG}"
+
+          if ! RAW=$(gh api "${BASE}/packages/maven/${PKG}/versions"); then
+            echo "Failed to list versions for ${PKG}; skipping delete"
+            exit 0
+          fi
+          if ! echo "$RAW" | jq -e 'type == "array"' >/dev/null 2>&1; then
+            echo "Versions response is not a list; skipping delete"
+            exit 0
+          fi
+          VID=$(echo "$RAW" | jq -r '.[] | select(.name == "latest") | .id' | head -n1)
+          if ! [[ "${VID}" =~ ^[0-9]+$ ]]; then
+            echo "No existing numeric 'latest' version (first run or already absent); skipping delete"
+            exit 0
+          fi
+          echo "Deleting ${PKG} version latest (id=${VID})"
+          gh api --method DELETE "${BASE}/packages/maven/${PKG}/versions/${VID}"
 
       - name: Deploy moving tag 'latest'
         run: >-
