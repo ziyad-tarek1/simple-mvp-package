@@ -39,7 +39,39 @@ jobs:
           </settings>
           EOF
 
-      - name: Deploy to GitHub Packages
+      - name: Deploy immutable version (${{ github.sha }})
         run: >-
           mvn --batch-mode -ntp deploy
           -Dgithub.repository=${{ github.repository }}
+          -Drevision=${{ github.sha }}
+
+      - name: Remove previous GitHub Packages version 'latest'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          OWNER="${{ github.repository_owner }}"
+          if gh api "orgs/${OWNER}" --silent 2>/dev/null; then
+            BASE="orgs/${OWNER}"
+          else
+            BASE="users/${OWNER}"
+          fi
+          # GitHub Maven package API name is usually groupId.artifactId or groupId%3AartifactId
+          deleted=
+          for PKG in "com.mshrai.larer" "com.mshrai%3Alarer" "larer"; do
+            VID=$(gh api "${BASE}/packages/maven/${PKG}/versions" -q '.[] | select(.name=="latest") | .id' 2>/dev/null | head -1)
+            if [ -n "$VID" ]; then
+              echo "Deleting ${PKG} version latest (id=$VID)"
+              gh api --method DELETE "${BASE}/packages/maven/${PKG}/versions/${VID}"
+              deleted=1
+              break
+            fi
+          done
+          if [ -z "$deleted" ]; then
+            echo "No existing 'latest' Maven version found to delete (first publish or different package name)"
+          fi
+
+      - name: Deploy moving tag 'latest'
+        run: >-
+          mvn --batch-mode -ntp deploy
+          -Dgithub.repository=${{ github.repository }}
+          -Drevision=latest

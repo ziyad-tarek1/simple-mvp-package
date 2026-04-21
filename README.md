@@ -8,7 +8,7 @@ Private **mshrai/larer** publishes a small Java library to **GitHub Packages** (
 |-------------|--------------------|
 | Group ID    | `com.mshrai`       |
 | Artifact ID | `larer`            |
-| Version     | `0.1.0` (bump in `pom.xml` for new releases) |
+| Version     | Each push to `main` publishes **two** Maven versions: full commit SHA (immutable) and **`latest`** (updated by deleting the previous `latest` in GitHub Packages, then republishing). Local default in `pom.xml` is `0.1.0-SNAPSHOT`. |
 | Registry URL | `https://maven.pkg.github.com/mshrai/larer` |
 
 Maven dependency:
@@ -17,9 +17,11 @@ Maven dependency:
 <dependency>
     <groupId>com.mshrai</groupId>
     <artifactId>larer</artifactId>
-    <version>0.1.0</version>
+    <version>latest</version>
 </dependency>
 ```
+
+In a real consumer `pom.xml`, set `<version>` to the full commit SHA you want to pin (shown in the GitHub Actions log and on the commit) or to `latest` for a floating dependency.
 
 Example usage:
 
@@ -54,7 +56,7 @@ In the consumer project’s **`pom.xml`**, declare the repository that hosts thi
         <dependency>
             <groupId>com.mshrai</groupId>
             <artifactId>larer</artifactId>
-            <version>0.1.0</version>
+            <version>latest</version>
         </dependency>
     </dependencies>
 </project>
