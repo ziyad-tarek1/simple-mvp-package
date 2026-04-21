@@ -39,6 +39,12 @@ jobs:
           </settings>
           EOF
 
+      - name: Run tests (verify)
+        run: >-
+          mvn --batch-mode -ntp verify
+          -Dgithub.repository=${{ github.repository }}
+          -Drevision=${{ github.sha }}
+
       - name: Deploy immutable version (${{ github.sha }})
         run: >-
           mvn --batch-mode -ntp deploy

@@ -5,7 +5,9 @@ package com.mshrai.larer;
  */
 public final class DummyGreeter {
 
-    private DummyGreeter() {}
+    private DummyGreeter() {
+        throw new UnsupportedOperationException("utility class");
+    }
 
     public static String greet(String name) {
         String n = name == null || name.isBlank() ? "world" : name.trim();
